@@ -1,0 +1,124 @@
+# Top-Level CMakeLists.txt
+PROJECT(SysMonitor)
+
+CMAKE_MINIMUM_REQUIRED(VERSION 3.11.0)
+# This can be used to override existing modules
+SET(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMAKEMODULES" ${CMAKE_MODULE_PATH} )
+MESSAGE("\n CMAKE-Module Path:" ${CMAKE_MODULE_PATH})
+
+# Configure parallel build on windows
+IF(WIN32)
+	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP4")
+ENDIF(WIN32)
+
+# default to debug-builds
+#IF (NOT CMAKE_BUILD_TYPE)
+#  SET (CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." FORCE)
+#ENDIF (NOT CMAKE_BUILD_TYPE)
+
+# use dwarf-2 debugging format on APPLE
+IF (CMAKE_BUILD_TYPE STREQUAL Debug)
+  IF (APPLE)
+    add_definitions("-gdwarf-2")
+  ENDIF (APPLE)
+
+  IF(CMAKE_SYSTEM_NAME STREQUAL "SunOS")
+      ADD_DEFINITIONS(-D_DEBUG)
+  ENDIF(CMAKE_SYSTEM_NAME STREQUAL "SunOS")
+
+  IF(MINGW)
+    ADD_DEFINITIONS(-D_DEBUG)
+    ADD_DEFINITIONS(-DWIN32)
+  ENDIF(MINGW)
+ 
+  IF(WIN32)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MDd")
+  ENDIF (WIN32)
+
+  ELSE (CMAKE_BUILD_TYPE STREQUAL Debug)
+  
+  IF(WIN32)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MD")
+  ENDIF(WIN32)
+
+  ENDIF (CMAKE_BUILD_TYPE STREQUAL Debug)
+
+# avoid some warnings on windows 
+IF(WIN32)
+  ADD_DEFINITIONS(-D_CRT_SECURE_NO_DEPRECATE)
+ENDIF(WIN32)
+
+# do not reconfigure when doing a rebuild/clean for example in VS
+# if you wish to reconfigure use cmake, ccmake or cmakesetup directly
+SET(CMAKE_SUPPRESS_REGENERATION true)
+
+# our debug-suffix
+IF(MSVC)
+  SET(CMAKE_DEBUG_POSTFIX  "d")
+ENDIF(MSVC)
+
+# lib-postfix for 32/64
+IF(UNIX AND NOT WIN32 AND NOT APPLE)
+  IF(CMAKE_SIZEOF_VOID_P MATCHES "8")
+    SET(LIB_POSTFIX "64" CACHE STRING "suffix for 32/64 dir placement")
+    MARK_AS_ADVANCED(LIB_POSTFIX)
+  ENDIF(CMAKE_SIZEOF_VOID_P MATCHES "8")
+ENDIF(UNIX AND NOT WIN32 AND NOT APPLE)
+IF(NOT DEFINED LIB_POSTFIX)
+  SET(LIB_POSTFIX "")
+ENDIF(NOT DEFINED LIB_POSTFIX) 
+
+# preset install dir
+IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+  SET(CMAKE_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}/installed" CACHE PATH "CMAKE_INSTALL_PREFIX" FORCE)
+ENDIF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+
+# main source/target
+
+# Executable-Source-Level
+
+# some dependencies on MacOS
+IF(APPLE)
+  FIND_PATH(CARBON_INCLUDE_DIR Carbon/Carbon.h)
+  FIND_LIBRARY(CARBON_LIBRARY Carbon)
+  FIND_LIBRARY(IOKIT_LIBRARY IOKit)
+  MARK_AS_ADVANCED(CARBON_INCLUDE_DIR CARBON_LIBRARY IOKIT_LIBRARY)
+  SET(EXTRALIBS_APPLE ${CARBON_LIBRARY} ${IOKIT_LIBRARY})
+ENDIF (APPLE)
+
+# find dependencies
+#FIND_PACKAGE(GTest)
+FIND_PACKAGE(WTL)
+set(CMAKE_CXX_FLAGS_COVERAGE "${CMAKE_CXX_FLAGS_RELEASE} -fprofile-arcs -ftest-coverage")
+
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
+# set SYSMONITOR_DIR
+get_filename_component(SYSMONITOR_DIR "${CMAKE_SOURCE_DIR}/.." ABSOLUTE)
+MESSAGE(STATUS "SYSMONITOR_DIR = ${SYSMONITOR_DIR}")
+
+# source
+ADD_SUBDIRECTORY(source)
+
+
+# in order to have an "uninstall" target
+CONFIGURE_FILE(
+  "${CMAKE_CURRENT_SOURCE_DIR}/CMAKEMODULES/cmake_uninstall.cmake.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
+  IMMEDIATE @ONLY)
+ADD_CUSTOM_TARGET(uninstall "${CMAKE_COMMAND}" -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake")
+
+#Package Installer configuration
+#TODO: Should be split in an app installer and sdk installer
+SET(CPACK_PACKAGE_NAME "SysMonitor")
+SET(CPACK_PACKAGE_VENDOR "-")
+SET(CPACK_PACKAGE_DESCRIPTION_SUMMARY "SysMonitor")
+SET(CPACK_PACKAGE_VERSION "0.1.0")
+SET(CPACK_PACKAGE_VERSION_MAJOR "0")
+SET(CPACK_PACKAGE_VERSION_MINOR "1")
+SET(CPACK_PACKAGE_VERSION_PATCH "0")
+SET(CPACK_PACKAGE_INSTALL_DIRECTORY "SysMonitor")
+SET(CPACK_ALL_INSTALL_TYPES Full)
+
+# This must always be last!
+INCLUDE(CPack)
